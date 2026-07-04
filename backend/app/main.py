@@ -2,9 +2,21 @@ from contextlib import asynccontextmanager
 import logging
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
+from app.api.auth import router as auth_router
+from app.api.analytics import router as analytics_router
+from app.api.system import router as system_router
+from app.api.cases import router as cases_router
+from app.api.phase5 import router as phase5_router
+from app.api.network import router as network_router
+from app.api.people import router as people_router
+from app.api.reports import router as reports_router
+from app.auth.dependencies import get_current_employee
+from app.middleware.exceptions import request_validation_exception_handler, unhandled_exception_handler
+from app.middleware.rate_limit import RateLimitMiddleware
 from app.utils.config import settings
 from app.utils.logging_config import setup_logging
 from app.database.database import get_db
@@ -35,15 +47,34 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
+
 # Configure CORS (Cross-Origin Resource Sharing)
-# In production, allow_origins should be loaded from environment variables
+allowed_origins = [origin.strip() for origin in settings.CORS_ALLOWED_ORIGINS.split(",") if origin.strip()]
+if allowed_origins == ["*"]:
+    allowed_origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(RateLimitMiddleware)
+
+# Register Phase 5 API routers.
+protected_dependencies = [Depends(get_current_employee)]
+
+app.include_router(auth_router)
+app.include_router(system_router)
+app.include_router(cases_router, dependencies=protected_dependencies)
+app.include_router(analytics_router, dependencies=protected_dependencies)
+app.include_router(network_router, dependencies=protected_dependencies)
+app.include_router(people_router, dependencies=protected_dependencies)
+app.include_router(reports_router, dependencies=protected_dependencies)
+app.include_router(phase5_router, dependencies=protected_dependencies)
 
 
 @app.get("/", tags=["General"])
@@ -78,4 +109,13 @@ def health_check(db: Session = Depends(get_db)):
         "status": app_status,
         "environment": settings.ENVIRONMENT,
         "database": db_status,
+    }
+
+
+@app.get("/version", tags=["General"])
+def version():
+    return {
+        "project": settings.PROJECT_NAME,
+        "version": "1.0.0",
+        "api_version": settings.API_V1_STR,
     }
