@@ -8,6 +8,7 @@ from sqlalchemy import text
 
 from app.api.auth import router as auth_router
 from app.api.analytics import router as analytics_router
+from app.api.prediction import router as prediction_router
 from app.api.system import router as system_router
 from app.api.cases import router as cases_router
 from app.api.phase5 import router as phase5_router
@@ -69,6 +70,7 @@ protected_dependencies = [Depends(get_current_employee)]
 
 app.include_router(auth_router)
 app.include_router(system_router)
+app.include_router(prediction_router, dependencies=protected_dependencies)
 app.include_router(cases_router, dependencies=protected_dependencies)
 app.include_router(analytics_router, dependencies=protected_dependencies)
 app.include_router(network_router, dependencies=protected_dependencies)

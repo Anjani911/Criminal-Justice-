@@ -10,6 +10,18 @@ from app.schemas.case import (
     CaseSummaryOut, CaseDetailOut, CaseListResponse,
     ArrestOut,
 )
+from app.schemas.prediction import (
+    HistoricalSummary,
+    HotspotPredictionItem,
+    HotspotPredictionResponse,
+    TrendPredictionItem,
+    TrendPredictionResponse,
+    StationRiskItem,
+    StationRiskResponse,
+    WarningItem,
+    WarningResponse,
+    PredictionDashboardResponse,
+)
 
 __all__ = [
     "AppBaseModel",
@@ -20,4 +32,10 @@ __all__ = [
     "CaseCreate", "CaseStatusUpdate",
     "CaseSummaryOut", "CaseDetailOut", "CaseListResponse",
     "ArrestOut",
+    "HistoricalSummary",
+    "HotspotPredictionItem", "HotspotPredictionResponse",
+    "TrendPredictionItem", "TrendPredictionResponse",
+    "StationRiskItem", "StationRiskResponse",
+    "WarningItem", "WarningResponse",
+    "PredictionDashboardResponse",
 ]

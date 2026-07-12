@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.schemas.ai import AIChatResponse
 from app.schemas.case import CaseDetailOut
+from app.services.prediction_service import prediction_service
 from app.services.analytics_service import analytics_service
 from app.services.crime_service import crime_service
 from app.services.network_service import network_service
@@ -102,6 +103,8 @@ class CrimeAIService:
             return "police_station_statistics", 0.9
         if any(keyword in text for keyword in ("network metrics", "criminal network", "graph metrics", "centrality")):
             return "network_metrics", 0.9
+        if any(keyword in text for keyword in ("predict", "predicted", "forecast", "forecasting", "likely to become", "risk score", "warning", "early warning", "hotspot next week", "vehicle theft risk")):
+            return "prediction", 0.94
         if any(keyword in text for keyword in ("case network", "sub graph", "subgraph", "case graph")):
             return "case_network", 0.88
         if any(keyword in text for keyword in ("accused network", "accused graph", "person network")):
@@ -122,6 +125,7 @@ class CrimeAIService:
         district = self._extract_district(question, context)
         year = self._extract_year(question, context)
         crime_head_id = self._extract_int(context.get("crime_head_id"))
+        crime_subhead_id = self._extract_int(context.get("crime_subhead_id"))
         accused_id = self._extract_int(context.get("accused_id"))
 
         if intent == "crime_trends":
@@ -153,6 +157,18 @@ class CrimeAIService:
                 intent=intent,
                 query_kind="case.lookup",
                 params={"case_id": case_id, "fir_number": fir_number},
+            )
+        if intent == "prediction":
+            return QueryPlan(
+                intent=intent,
+                query_kind="prediction.dashboard",
+                params={
+                    "district": district,
+                    "police_station": context.get("police_station") or context.get("unit_name"),
+                    "crime_head_id": crime_head_id,
+                    "crime_subhead_id": crime_subhead_id,
+                    "period": context.get("period") or ("next_month" if "month" in question.lower() else "next_week"),
+                },
             )
         return QueryPlan(intent="dashboard", query_kind="analytics.dashboard", params={})
 
@@ -201,6 +217,15 @@ class CrimeAIService:
                 raise LookupError("No matching case was found for the provided filters.")
 
             return {"case": CaseDetailOut.model_validate(case).model_dump()}
+
+        if plan.query_kind == "prediction.dashboard":
+            return {
+                "prediction_dashboard": prediction_service.get_dashboard(
+                    db,
+                    district=plan.params.get("district"),
+                    police_station=plan.params.get("police_station"),
+                )
+            }
 
         raise LookupError("Unsupported query plan.")
 
@@ -294,6 +319,19 @@ class CrimeAIService:
         if plan.intent == "case_lookup":
             case = data.get("case", {})
             return f"Case {case.get('fir_number', 'unknown')} is available with status {case.get('status', 'unknown')}."
+        if plan.intent == "prediction":
+            dashboard = data.get("prediction_dashboard", {})
+            hotspot = dashboard.get("hotspot_forecast", {})
+            trend = dashboard.get("trend_forecast", {})
+            station = dashboard.get("station_risk", {})
+            if hotspot or trend or station:
+                return (
+                    "Prediction summary generated: "
+                    f"top hotspot risk {hotspot.get('prediction', {}).get('risk_percentage', 0)}%, "
+                    f"trend direction {trend.get('prediction', {}).get('trend_direction', 'stable')}, "
+                    f"station risk {station.get('prediction', {}).get('risk_level', 'LOW')}."
+                )
+            return "Prediction dashboard generated from historical crime data."
         return "A structured answer was generated from approved analytics and network data."
 
     def _extract_case_id(self, question: str, context: Dict[str, Any]) -> Optional[int]:

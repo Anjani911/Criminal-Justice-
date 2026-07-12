@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: scrb_postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: scrb_admin
+      POSTGRES_PASSWORD: scrb_secure_password_987
+      POSTGRES_DB: scrb_crime_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scrb_admin -d scrb_crime_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scrb_fastapi_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://scrb_admin:scrb_secure_password_987@db:5432/scrb_crime_db
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - JWT_SECRET_KEY=production-secure-fallback-key-scrb-ai-platform-987654321
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=120
+      - GEMINI_API_KEY=your-gemini-key-goes-here
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
