@@ -13,6 +13,8 @@ class AIChatResponse(AppBaseModel):
     intent: str
     confidence: confloat(ge=0.0, le=1.0)
     query_kind: str
+    detected_language: str
+    response_language: str
     answer: str
     data: Dict[str, Any] = Field(default_factory=dict)
     suggestions: list[str] = Field(default_factory=list)

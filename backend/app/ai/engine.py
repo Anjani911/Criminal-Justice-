@@ -48,17 +48,29 @@ class CrimeAIService:
 
     def answer(self, db: Session, question: str, context: Optional[Dict[str, Any]] = None) -> AIChatResponse:
         context = context or {}
-        intent, confidence = self.detect_intent(question, context)
-        plan = self.build_query_plan(intent, question, context)
+        
+        detected_language = self._detect_language(question)
+        target_language = detected_language
+        
+        english_question = question
+        if detected_language == "Kannada":
+            translated = self._translate_to_english(question)
+            if translated:
+                english_question = translated
+                
+        intent, confidence = self.detect_intent(english_question, context)
+        plan = self.build_query_plan(intent, english_question, context)
 
         try:
             data = self.execute_plan(db, plan)
-            answer = self.summarize(question, plan, data)
+            answer = self.summarize(english_question, plan, data, target_language)
             return AIChatResponse(
                 status="success",
                 intent=plan.intent,
                 confidence=confidence,
                 query_kind=plan.query_kind,
+                detected_language=detected_language,
+                response_language=target_language,
                 answer=answer,
                 data=data,
                 suggestions=self.suggestions_for_intent(plan.intent),
@@ -69,6 +81,8 @@ class CrimeAIService:
                 intent=plan.intent,
                 confidence=confidence,
                 query_kind=plan.query_kind,
+                detected_language=detected_language,
+                response_language=target_language,
                 answer=str(exc),
                 data={"error": str(exc)},
                 suggestions=self.suggestions_for_intent(plan.intent),
@@ -80,6 +94,8 @@ class CrimeAIService:
                 intent=plan.intent,
                 confidence=confidence,
                 query_kind=plan.query_kind,
+                detected_language=detected_language,
+                response_language="English",
                 answer="The request could not be processed safely.",
                 data={"error": str(exc)},
                 suggestions=["Try asking for crime trends, hotspots, crime categories, or case details."],
@@ -229,11 +245,17 @@ class CrimeAIService:
 
         raise LookupError("Unsupported query plan.")
 
-    def summarize(self, question: str, plan: QueryPlan, data: Dict[str, Any]) -> str:
-        gemini_text = self._summarize_with_gemini(question, plan, data)
+    def summarize(self, question: str, plan: QueryPlan, data: Dict[str, Any], target_language: str = "English") -> str:
+        gemini_text = self._summarize_with_gemini(question, plan, data, target_language)
         if gemini_text:
             return gemini_text
-        return self._fallback_summary(plan, data)
+            
+        fallback = self._fallback_summary(plan, data)
+        if target_language == "Kannada":
+            translated = self._translate_to_kannada(fallback)
+            if translated:
+                return translated
+        return fallback
 
     def suggestions_for_intent(self, intent: str) -> list[str]:
         suggestions_map = {
@@ -250,7 +272,7 @@ class CrimeAIService:
         }
         return suggestions_map.get(intent, ["Show dashboard summary", "Show crime trends", "Show hotspots"])
 
-    def _summarize_with_gemini(self, question: str, plan: QueryPlan, data: Dict[str, Any]) -> Optional[str]:
+    def _summarize_with_gemini(self, question: str, plan: QueryPlan, data: Dict[str, Any], target_language: str = "English") -> Optional[str]:
         api_key = settings.GEMINI_API_KEY.strip()
         if not api_key:
             return None
@@ -269,7 +291,7 @@ class CrimeAIService:
                 f"Question: {question}\n"
                 f"Intent: {plan.intent}\n"
                 f"Data: {data}\n\n"
-                "Return a professional summary in 3-6 sentences."
+                f"Return a professional summary in 3-6 sentences. The response MUST be in {target_language}."
             )
             response = model.generate_content(prompt)
             text = getattr(response, "text", None)
@@ -368,6 +390,43 @@ class CrimeAIService:
         try:
             return int(value)
         except (TypeError, ValueError):
+            return None
+
+    def _detect_language(self, text: str) -> str:
+        if re.search(r'[\u0C80-\u0CFF]', text):
+            return "Kannada"
+        return "English"
+
+    def _translate_to_english(self, text: str) -> Optional[str]:
+        api_key = settings.GEMINI_API_KEY.strip()
+        if not api_key:
+            return None
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            prompt = f"Translate the following Kannada text to English. Provide ONLY the direct translation, nothing else:\n\n{text}"
+            response = model.generate_content(prompt)
+            translated = getattr(response, "text", None)
+            return translated.strip() if isinstance(translated, str) and translated.strip() else None
+        except Exception as exc:
+            logger.warning("Gemini translation to English failed: %s", exc)
+            return None
+
+    def _translate_to_kannada(self, text: str) -> Optional[str]:
+        api_key = settings.GEMINI_API_KEY.strip()
+        if not api_key:
+            return None
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            prompt = f"Translate the following English text to Kannada. Provide ONLY the direct translation, nothing else:\n\n{text}"
+            response = model.generate_content(prompt)
+            translated = getattr(response, "text", None)
+            return translated.strip() if isinstance(translated, str) and translated.strip() else None
+        except Exception as exc:
+            logger.warning("Gemini translation to Kannada failed: %s", exc)
             return None
 
 

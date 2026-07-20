@@ -6,7 +6,7 @@ roadmap while reusing the existing service layer.
 """
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
 
 from app.ai import ai_service
@@ -23,6 +23,9 @@ from app.schemas.case import (
 from app.schemas.phase5 import ChatRequest, ReportRequest
 from app.reports import report_engine
 from app.services import analytics_service, crime_service, network_service, report_service
+from app.services.audit_service import audit_service
+from app.auth.dependencies import get_current_employee
+from app.models.employee import Employee
 from app.utils.config import settings
 
 
@@ -75,18 +78,55 @@ def get_case_by_fir(fir_number: str, db: Session = Depends(get_db)):
 
 
 @router.post("/cases", response_model=CaseDetailOut, status_code=status.HTTP_201_CREATED, summary="Create FIR Case")
-def create_case(payload: CaseCreate, db: Session = Depends(get_db)):
+def create_case(
+    request: Request,
+    payload: CaseCreate,
+    db: Session = Depends(get_db),
+    current_employee: Employee = Depends(get_current_employee)
+):
+    ip_address = request.client.host if request.client else None
     try:
         case = crime_service.create_case(db, payload.model_dump())
+        audit_service.log_action(
+            db=db,
+            employee_id=current_employee.id,
+            username=current_employee.username,
+            role=current_employee.role,
+            action="create",
+            resource_type="case",
+            resource_id=case.id,
+            description=f"Created case FIR {payload.fir_number}",
+            status="Success",
+            ip_address=ip_address,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     return CaseDetailOut.model_validate(crime_service.get_case_by_id(db, case.id))
 
 
 @router.patch("/cases/{case_id}/status", response_model=CaseDetailOut, summary="Update Case Status")
-def update_case_status(case_id: int, payload: CaseStatusUpdate, db: Session = Depends(get_db)):
+def update_case_status(
+    request: Request,
+    case_id: int,
+    payload: CaseStatusUpdate,
+    db: Session = Depends(get_db),
+    current_employee: Employee = Depends(get_current_employee)
+):
+    ip_address = request.client.host if request.client else None
     try:
         case = crime_service.update_case_status(db, case_id, payload.status)
+        audit_service.log_action(
+            db=db,
+            employee_id=current_employee.id,
+            username=current_employee.username,
+            role=current_employee.role,
+            action="update_status",
+            resource_type="case",
+            resource_id=case.id,
+            description=f"Updated status to {payload.status}",
+            status="Success",
+            ip_address=ip_address,
+        )
     except LookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except ValueError as exc:
@@ -150,12 +190,48 @@ def network_accused(accused_id: int, db: Session = Depends(get_db)) -> Dict[str,
 
 
 @router.post("/chat", response_model=AIChatResponse, summary="Validated AI Chat")
-def chat(payload: ChatRequest, db: Session = Depends(get_db)) -> AIChatResponse:
+def chat(
+    request: Request,
+    payload: ChatRequest,
+    db: Session = Depends(get_db),
+    current_employee: Employee = Depends(get_current_employee)
+) -> AIChatResponse:
+    ip_address = request.client.host if request.client else None
+    audit_service.log_action(
+        db=db,
+        employee_id=current_employee.id,
+        username=current_employee.username,
+        role=current_employee.role,
+        action="chat_request",
+        resource_type="ai",
+        description=f"AI chat query: {payload.question[:50]}...",
+        status="Success",
+        ip_address=ip_address,
+    )
     return ai_service.answer(db, payload.question, payload.context)
 
 
 @router.post("/report", response_model=ReportGenerationResponse, summary="Generate Professional PDF Report")
-def report(payload: ReportRequest, db: Session = Depends(get_db)) -> ReportGenerationResponse:
+def report(
+    request: Request,
+    payload: ReportRequest,
+    db: Session = Depends(get_db),
+    current_employee: Employee = Depends(get_current_employee)
+) -> ReportGenerationResponse:
+    ip_address = request.client.host if request.client else None
+    audit_service.log_action(
+        db=db,
+        employee_id=current_employee.id,
+        username=current_employee.username,
+        role=current_employee.role,
+        action="generate_report",
+        resource_type="report",
+        resource_id=payload.case_id,
+        description=f"Generated {payload.report_type} report",
+        status="Success",
+        ip_address=ip_address,
+    )
+    
     if payload.report_type == "case_investigation":
         result = report_engine.generate_case_report(db, payload.case_id, ai_summary=payload.ai_summary)
         return ReportGenerationResponse.model_validate(result)

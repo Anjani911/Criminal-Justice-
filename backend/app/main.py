@@ -15,6 +15,7 @@ from app.api.phase5 import router as phase5_router
 from app.api.network import router as network_router
 from app.api.people import router as people_router
 from app.api.reports import router as reports_router
+from app.api.audit import router as audit_router
 from app.auth.dependencies import get_current_employee
 from app.middleware.exceptions import request_validation_exception_handler, unhandled_exception_handler
 from app.middleware.rate_limit import RateLimitMiddleware
@@ -77,6 +78,7 @@ app.include_router(network_router, dependencies=protected_dependencies)
 app.include_router(people_router, dependencies=protected_dependencies)
 app.include_router(reports_router, dependencies=protected_dependencies)
 app.include_router(phase5_router, dependencies=protected_dependencies)
+app.include_router(audit_router, dependencies=protected_dependencies)
 
 
 @app.get("/", tags=["General"])

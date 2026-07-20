@@ -4,6 +4,7 @@ from app.models.employee import Employee
 from app.models.people import Accused, Victim
 from app.models.case import CaseMaster
 from app.models.arrest import ArrestSurrender
+from app.models.audit import AuditLog
 
 # This list defines what is imported when from app.models import * is called.
 # It also ensures that Alembic / SQLAlchemy metadata registers all models.
@@ -16,4 +17,5 @@ __all__ = [
     "Victim",
     "CaseMaster",
     "ArrestSurrender",
+    "AuditLog",
 ]

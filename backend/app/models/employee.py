@@ -32,3 +32,6 @@ class Employee(Base):
     cases_investigated: Mapped[List["CaseMaster"]] = relationship(
         back_populates="investigating_officer"
     )
+    audit_logs = relationship(
+        "AuditLog", back_populates="employee", cascade="all, delete-orphan"
+    )
