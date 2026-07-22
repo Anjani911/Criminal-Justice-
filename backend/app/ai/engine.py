@@ -431,3 +431,5 @@ class CrimeAIService:
 
 
 ai_service = CrimeAIService()
+
+
