@@ -1,5 +1,5 @@
 import api from '@/api/client';
-import type { NetworkGraph } from '@/types';
+import type { NetworkGraph, NetworkMetricsResponse } from '@/types';
 
 export const networkService = {
   async getFullNetwork(): Promise<NetworkGraph> {
@@ -7,8 +7,8 @@ export const networkService = {
     return data;
   },
 
-  async getMetrics() {
-    const { data } = await api.get('/network/metrics');
+  async getMetrics(): Promise<NetworkMetricsResponse> {
+    const { data } = await api.get<NetworkMetricsResponse>('/network/metrics');
     return data;
   },
 

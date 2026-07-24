@@ -76,12 +76,14 @@ export interface YearlySummaryItem {
 
 export interface StatusBreakdownItem {
   status: string;
-  count: number;
+  case_count?: number;
+  count?: number;
 }
 
 export interface AccusedStatusItem {
   status: string;
   count: number;
+  case_count?: number;
 }
 
 export interface DistrictHotspot {
@@ -104,36 +106,156 @@ export interface PoliceStationStats {
   closed_count: number;
 }
 
-export interface Person {
-  id: number;
-  name: string;
+export interface NetworkNodeData {
+  id: string;
+  node_type: 'case' | 'accused' | 'arrest';
+  label: string;
   status?: string;
+  district?: string;
+  unit?: string;
+  accused_id?: number;
+  case_id?: number;
+  arrest_id?: number;
+  age?: number;
+  gender?: string;
+  arrest_date?: string;
+  court_name?: string;
+}
+
+export interface NetworkNode {
+  data: NetworkNodeData;
+}
+
+export interface NetworkEdgeData {
+  id: string;
+  source: string;
+  target: string;
+  relationship?: string;
   [key: string]: unknown;
 }
 
-export interface Victim {
-  id: number;
-  name: string;
-  injury_type?: string;
-  [key: string]: unknown;
-}
-
-export interface HealthStatus {
-  status: string;
-  environment?: string;
-  database?: string;
-}
-
-export interface VersionInfo {
-  project: string;
-  version: string;
-  api_version: string;
+export interface NetworkEdge {
+  data: NetworkEdgeData;
 }
 
 export interface NetworkGraph {
-  nodes?: Array<Record<string, unknown>>;
-  edges?: Array<Record<string, unknown>>;
-  [key: string]: unknown;
+  nodes: NetworkNode[];
+  edges: NetworkEdge[];
+  metadata?: {
+    node_count: number;
+    edge_count: number;
+    node_types: Record<string, number>;
+  };
+}
+
+export interface NetworkMetricNode {
+  node_id: string;
+  label: string;
+  node_type: string;
+  degree_centrality: number;
+  betweenness_centrality?: number;
+}
+
+export interface NetworkMetricsResponse {
+  total_nodes: number;
+  total_edges: number;
+  top_cases: NetworkMetricNode[];
+  top_accused: NetworkMetricNode[];
+  top_arrests: NetworkMetricNode[];
+}
+
+export interface HistoricalSummary {
+  total_records: number;
+  start_date?: string;
+  end_date?: string;
+  recent_7d: number;
+  previous_7d: number;
+  growth_pct: number;
+  average_daily_count: number;
+}
+
+export interface HotspotPredictionItem {
+  district: string;
+  police_station: string;
+  crime_type: string;
+  predicted_hotspot: string;
+  expected_crime_count: number;
+  risk_percentage: number;
+  confidence: number;
+  model_name: string;
+  explanation: string;
+  historical_data_summary?: HistoricalSummary;
+}
+
+export interface HotspotPredictionResponse {
+  status: string;
+  generated_at: string;
+  prediction?: HotspotPredictionItem;
+  predictions?: HotspotPredictionItem[];
+  explanation?: string;
+}
+
+export interface TrendPredictionItem {
+  period: 'next_week' | 'next_month';
+  predicted_value: number;
+  trend_direction: 'upward' | 'downward' | 'stable';
+  confidence: number;
+  model_name: string;
+  explanation: string;
+  historical_data_summary?: HistoricalSummary;
+}
+
+export interface TrendPredictionResponse {
+  status: string;
+  generated_at: string;
+  prediction?: TrendPredictionItem;
+  explanation?: string;
+}
+
+export interface StationRiskItem {
+  district: string;
+  police_station: string;
+  risk_score: number;
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  confidence: number;
+  model_name: string;
+  explanation: string;
+  historical_data_summary?: HistoricalSummary;
+}
+
+export interface StationRiskResponse {
+  status: string;
+  generated_at: string;
+  prediction?: StationRiskItem;
+  predictions?: StationRiskItem[];
+  explanation?: string;
+}
+
+export interface WarningItem {
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  title: string;
+  category: string;
+  district?: string;
+  police_station?: string;
+  reason: string;
+  timestamp: string;
+  confidence: number;
+}
+
+export interface WarningResponse {
+  status: string;
+  generated_at: string;
+  warnings: WarningItem[];
+  explanation?: string;
+}
+
+export interface PredictionDashboardResponse {
+  status: string;
+  generated_at: string;
+  hotspot_forecast?: HotspotPredictionResponse;
+  trend_forecast?: TrendPredictionResponse;
+  station_risk?: StationRiskResponse;
+  warnings?: WarningResponse;
 }
 
 export interface ReportResponse {
