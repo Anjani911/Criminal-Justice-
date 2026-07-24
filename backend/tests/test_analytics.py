@@ -87,3 +87,22 @@ def test_analytics_endpoints(client, db_session):
     ctypes = response.json()
     assert ctypes[0]["crime_head"] == "Theft"
     assert ctypes[0]["case_count"] == 1
+
+
+def test_frontend_api_v1_analytics_and_reports_paths(client, db_session):
+    seed_analytics_data(db_session)
+
+    login_resp = client.post(
+        "/api/v1/auth/login",
+        json={"username": "john_doe", "password": "password123"}
+    )
+    token = login_resp.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    analytics_resp = client.get("/api/v1/analytics/dashboard", headers=headers)
+    assert analytics_resp.status_code == 200
+    assert analytics_resp.json()["total_cases"] == 1
+
+    reports_resp = client.get("/api/v1/reports/dashboard", headers=headers)
+    assert reports_resp.status_code == 200
+    assert isinstance(reports_resp.json(), dict)
